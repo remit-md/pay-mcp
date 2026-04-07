@@ -18,8 +18,12 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
+import { resolveKey } from "./signer/index.js";
+import { privateKeyToAddress } from "./crypto/address.js";
+import { PayAPI } from "./api.js";
+import type { Hex } from "viem";
 
-const NETWORK_CONFIG = {
+export const NETWORK_CONFIG = {
   mainnet: {
     chainId: 8453,
     apiUrl: "https://pay-skill.com/api/v1",
@@ -32,7 +36,7 @@ const NETWORK_CONFIG = {
   },
 } as const;
 
-type NetworkName = keyof typeof NETWORK_CONFIG;
+export type NetworkName = keyof typeof NETWORK_CONFIG;
 
 function resolveNetwork(): NetworkName {
   const env = process.env.PAY_NETWORK?.toLowerCase();
@@ -40,41 +44,22 @@ function resolveNetwork(): NetworkName {
   return "mainnet";
 }
 
-function resolveKey(): string {
-  const key = process.env.PAYSKILL_SIGNER_KEY;
-  if (!key) {
-    // Phase M1 will add keychain + .enc file resolution here
-    throw new Error(
-      "No wallet found. Set PAYSKILL_SIGNER_KEY or run 'pay init' to create a wallet.",
-    );
-  }
-
-  // Check if it looks like a raw hex private key (64 hex chars, optional 0x prefix)
-  const stripped = key.startsWith("0x") ? key.slice(2) : key;
-  if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
-    return stripped;
-  }
-
-  // Otherwise it might be a keystore password — Phase M1 will handle this
-  throw new Error(
-    "PAYSKILL_SIGNER_KEY does not look like a hex private key. Keystore decryption is not yet implemented.",
-  );
-}
-
 async function main(): Promise<void> {
   const network = resolveNetwork();
   const config = NETWORK_CONFIG[network];
-  const key = resolveKey();
+
+  const resolved = await resolveKey();
+  const address = privateKeyToAddress(resolved.privateKeyHex);
 
   console.error(
     `pay-mcp: starting on ${config.name} (chain ${config.chainId}), api: ${config.apiUrl}`,
   );
-  console.error(`pay-mcp: wallet key loaded from PAYSKILL_SIGNER_KEY env var`);
-  console.error(
-    `pay-mcp: key prefix: ${key.slice(0, 4)}...${key.slice(-4)}`,
-  );
+  console.error(`pay-mcp: wallet ${address} (key source: ${resolved.source})`);
 
-  const server = createServer();
+  const privateKey = (`0x${resolved.privateKeyHex}`) as Hex;
+  const api = new PayAPI(privateKey, address, config.apiUrl, config.chainId);
+
+  const server = createServer(api);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // Server runs until stdin closes

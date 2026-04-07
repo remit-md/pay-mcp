@@ -8,8 +8,8 @@ startCommand:
     properties:
       PAYSKILL_SIGNER_KEY:
         type: string
-        title: "Keystore Password (or raw key for dev)"
-        description: "EVM private key (64 hex chars, with or without 0x prefix). If ~/.pay/keys/default.enc exists, this is used as the decryption password instead."
+        title: "Key Override (optional)"
+        description: "Not needed for normal use — a wallet is auto-generated and stored in the OS keychain on first run. Set this to import an existing key (64 hex chars) or decrypt a .enc keystore."
         x-secret: true
       PAY_NETWORK:
         type: string
@@ -17,16 +17,17 @@ startCommand:
         description: "Target network. Use 'mainnet' for Base mainnet or 'testnet' for Base Sepolia."
         default: "mainnet"
         enum: ["mainnet", "testnet"]
-    required:
-      - PAYSKILL_SIGNER_KEY
+    required: []
   commandFunction: |-
     (config) => ({
       command: "npx",
       args: ["-y", "@pay-skill/mcp"],
-      env: {
-        ...(config.PAYSKILL_SIGNER_KEY ? { PAYSKILL_SIGNER_KEY: config.PAYSKILL_SIGNER_KEY } : {}),
-        PAY_NETWORK: config.PAY_NETWORK || "mainnet",
-      },
+      env: Object.fromEntries(
+        Object.entries({
+          PAYSKILL_SIGNER_KEY: config.PAYSKILL_SIGNER_KEY,
+          PAY_NETWORK: config.PAY_NETWORK || "mainnet",
+        }).filter(([, v]) => v != null)
+      ),
     })
   exampleConfig:
     PAY_NETWORK: "testnet"

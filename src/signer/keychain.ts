@@ -7,7 +7,7 @@
  * If keytar is not installed, loadKey() throws with a clear message.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { MetaFile } from "./types.js";
@@ -32,25 +32,51 @@ export function loadMeta(name: string): MetaFile {
   return JSON.parse(contents) as MetaFile;
 }
 
+async function getKeytar(): Promise<typeof import("keytar")> {
+  try {
+    return await import("keytar");
+  } catch {
+    throw new Error(
+      "keytar is not installed. Install it as a peer dependency: npm install keytar",
+    );
+  }
+}
+
+/**
+ * Generate a new private key, store it in the OS keychain, and write a .meta file.
+ * Returns the raw 32-byte key as a hex string (no 0x prefix).
+ */
+export async function generateAndStore(name: string, address: string, privateKeyHex: string): Promise<void> {
+  const keytar = await getKeytar();
+
+  // Store raw bytes in OS keychain
+  const bytes = Buffer.from(privateKeyHex, "hex");
+  await keytar.setPassword(KEYCHAIN_SERVICE, name, bytes.toString("binary"));
+
+  // Write .meta file
+  const dir = keysDir();
+  mkdirSync(dir, { recursive: true });
+  const meta: MetaFile = {
+    version: 2,
+    name,
+    address: address.toLowerCase(),
+    storage: "keychain",
+    created_at: new Date().toISOString(),
+  };
+  writeFileSync(metaPath(name), JSON.stringify(meta, null, 2), "utf-8");
+}
+
 /**
  * Load a private key from the OS keychain via keytar.
  * Returns the raw 32-byte key as a hex string (no 0x prefix).
  */
 export async function loadKey(name: string): Promise<string> {
-  let keytar: typeof import("keytar");
-  try {
-    keytar = await import("keytar");
-  } catch {
-    throw new Error(
-      "keytar is not installed. Install it as a peer dependency to use OS keychain keys, " +
-        "or set PAYSKILL_SIGNER_KEY as a hex private key.",
-    );
-  }
+  const keytar = await getKeytar();
 
   const secret = await keytar.getPassword(KEYCHAIN_SERVICE, name);
   if (!secret) {
     throw new Error(
-      `No key '${name}' found in OS keychain. Run 'pay init' to create a wallet.`,
+      `No key '${name}' found in OS keychain.`,
     );
   }
 

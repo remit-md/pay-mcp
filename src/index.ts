@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const privateKey = (`0x${resolved.privateKeyHex}`) as Hex;
   const api = new PayAPI(privateKey, address, config.apiUrl, config.chainId);
 
-  const server = createServer(api);
+  const server = createServer(api, privateKey);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // Server runs until stdin closes

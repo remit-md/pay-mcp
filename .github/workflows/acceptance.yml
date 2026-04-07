@@ -1,0 +1,27 @@
+name: Acceptance Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Acceptance Tests (Base Sepolia)
+        env:
+          PAYSKILL_SIGNER_KEY: ${{ secrets.PAYSKILL_SIGNER_KEY }}
+          PAY_NETWORK: testnet
+        run: npm run test:acceptance

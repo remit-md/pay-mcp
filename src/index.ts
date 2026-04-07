@@ -44,7 +44,61 @@ function resolveNetwork(): NetworkName {
   return "mainnet";
 }
 
+async function check(): Promise<void> {
+  const network = resolveNetwork();
+  const config = NETWORK_CONFIG[network];
+  console.log(`pay-mcp diagnostic check`);
+  console.log(`  network: ${config.name} (chain ${config.chainId})`);
+  console.log(`  api:     ${config.apiUrl}`);
+
+  // Key resolution
+  let address: string;
+  try {
+    const resolved = await resolveKey();
+    address = privateKeyToAddress(resolved.privateKeyHex);
+    console.log(`  wallet:  ${address}`);
+    console.log(`  key:     ${resolved.source}`);
+  } catch (err) {
+    console.log(`  wallet:  FAILED - ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+
+  // API connectivity
+  try {
+    const resp = await fetch(`${config.apiUrl}/contracts`);
+    if (resp.ok) {
+      const data = (await resp.json()) as Record<string, unknown>;
+      console.log(`  server:  OK (router: ${data.router})`);
+    } else {
+      console.log(`  server:  FAILED (HTTP ${resp.status})`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.log(`  server:  UNREACHABLE - ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+
+  // Auth check
+  try {
+    const privateKey = (`0x${(await resolveKey()).privateKeyHex}`) as Hex;
+    const api = new PayAPI(privateKey, address, config.apiUrl, config.chainId);
+    const status = await api.get<{ balance_usdc: string }>("/status");
+    console.log(`  auth:    OK (balance: $${(Number(status.balance_usdc) / 1_000_000).toFixed(2)})`);
+  } catch (err) {
+    console.log(`  auth:    FAILED - ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+
+  console.log(`\nAll checks passed. MCP server is ready.`);
+}
+
 async function main(): Promise<void> {
+  // --check diagnostic mode
+  if (process.argv.includes("--check")) {
+    await check();
+    return;
+  }
+
   const network = resolveNetwork();
   const config = NETWORK_CONFIG[network];
 

@@ -17,17 +17,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "keytar": "^7.9.0",
     "viem": "^2.0.0",
     "zod": "^3.0.0",
     "zod-to-json-schema": "^3.25.2"
-  },
-  "peerDependencies": {
-    "keytar": "^7.0.0"
-  },
-  "peerDependenciesMeta": {
-    "keytar": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/keytar": "^4.4.0",

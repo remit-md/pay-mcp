@@ -32,9 +32,16 @@ export function loadMeta(name: string): MetaFile {
   return JSON.parse(contents) as MetaFile;
 }
 
-async function getKeytar(): Promise<typeof import("keytar")> {
+interface KeytarModule {
+  getPassword(service: string, account: string): Promise<string | null>;
+  setPassword(service: string, account: string, password: string): Promise<void>;
+}
+
+async function getKeytar(): Promise<KeytarModule> {
   try {
-    return await import("keytar");
+    const mod = await import("keytar");
+    // keytar is CJS — functions may be on .default or top-level
+    return (mod.default ?? mod) as KeytarModule;
   } catch {
     throw new Error(
       "keytar is not installed. Install it as a peer dependency: npm install keytar",

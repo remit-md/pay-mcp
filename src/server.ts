@@ -12,6 +12,7 @@ import {
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { PayAPI } from "./api.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -20,7 +21,11 @@ const pkg = JSON.parse(
 
 const SERVER_INFO = { name: "@pay-skill/mcp", version: pkg.version };
 
-export function createServer(): Server {
+/**
+ * Create and configure the MCP server with all tools, resources, and prompts.
+ * The PayAPI instance is captured in closure — the private key never leaves this process.
+ */
+export function createServer(_api: PayAPI): Server {
   const server = new Server(SERVER_INFO, {
     capabilities: { tools: {}, resources: {}, prompts: {} },
   });

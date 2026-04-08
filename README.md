@@ -133,7 +133,7 @@ All checks passed. MCP server is ready.
 ## Development
 
 ```bash
-git clone https://github.com/remit-md/pay-mcp.git
+git clone https://github.com/pay-skill/pay-mcp.git
 cd pay-mcp
 npm install
 npm run build

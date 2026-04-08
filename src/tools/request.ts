@@ -32,6 +32,8 @@ interface PaymentRequirements {
   to: string;
   facilitator_url?: string;
   network?: string;
+  /** Raw accepts[0] from x402 v2 402 response — echoed back in payment payload. */
+  accepted?: Record<string, unknown>;
 }
 
 export function createRequestTool(api: PayAPI, privateKey: Hex): Tool {
@@ -138,6 +140,7 @@ function parseRequirementsObject(obj: Record<string, unknown>): PaymentRequireme
       to: String(offer.payTo ?? ""),
       facilitator_url: extra.facilitator ? String(extra.facilitator) : undefined,
       network: offer.network ? String(offer.network) : undefined,
+      accepted: offer,
     };
   }
 
@@ -170,17 +173,25 @@ async function settleViaDirect(
   );
 
   const paymentPayload = {
-    version: 2,
-    settlement: "direct",
-    scheme: "eip3009",
-    network: `eip155:${api.getChainId()}`,
-    from: auth.from,
-    to: auth.to,
-    value: String(req.amount),
-    valid_after: "0",
-    valid_before: "0",
-    nonce: auth.nonce,
-    signature: combinedSignature(auth),
+    x402Version: 2,
+    accepted: req.accepted ?? {
+      scheme: "exact",
+      network: `eip155:${api.getChainId()}`,
+      amount: String(req.amount),
+      payTo: req.to,
+    },
+    payload: {
+      signature: combinedSignature(auth),
+      authorization: {
+        from: auth.from,
+        to: auth.to,
+        value: String(req.amount),
+        validAfter: "0",
+        validBefore: "0",
+        nonce: auth.nonce,
+      },
+    },
+    extensions: {},
   };
 
   const paymentSig = btoa(JSON.stringify(paymentPayload));
@@ -258,10 +269,23 @@ async function settleViaTab(
   });
 
   const paymentPayload = {
-    version: 2,
-    settlement: "tab",
-    tab_id: tab.id,
-    charge_id: charge.charge_id,
+    x402Version: 2,
+    accepted: req.accepted ?? {
+      scheme: "exact",
+      network: `eip155:${api.getChainId()}`,
+      amount: String(req.amount),
+      payTo: req.to,
+    },
+    payload: {
+      authorization: { from: api.getAddress() },
+    },
+    extensions: {
+      pay: {
+        settlement: "tab",
+        tabId: tab.id,
+        chargeId: charge.charge_id,
+      },
+    },
   };
 
   const paymentSig = btoa(JSON.stringify(paymentPayload));

@@ -16,7 +16,6 @@ import type { WebhookRegistration } from "../types.js";
 
 const VALID_EVENTS = [
   "tab.opened",
-  "tab.charged",
   "tab.low_balance",
   "tab.closing_soon",
   "tab.closed",

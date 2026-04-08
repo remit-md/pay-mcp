@@ -61,6 +61,7 @@ async function check(): Promise<void> {
   } catch (err) {
     console.log(`  wallet:  FAILED - ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
+    return; // hint to TypeScript that this is unreachable
   }
 
   // API connectivity

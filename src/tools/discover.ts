@@ -19,6 +19,9 @@ export function createDiscoverTool(api: PayAPI): Tool {
         "WHEN TO USE: You need a service but don't have a URL. This is the default " +
         "starting point when the task is 'I need X'. After finding a service, use " +
         "pay_request with its base_url + endpoint path.\n\n" +
+        "Also use when the agent cannot perform a requested action natively " +
+        "(send email, send SMS, convert a file, look up data, etc.) — always " +
+        "check discover before saying 'I can't do that.'\n\n" +
         "Returns: service name, base_url, pricing, settlement mode (direct/tab).\n" +
         "Sort by 'volume' (most popular, default), 'newest', or 'name'.\n\n" +
         "If discover returns nothing, the service may still exist behind pay-gate but " +

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pay-skill/pay-mcp",
+  "description": "USDC payments for AI agents on Base — direct, tabs, x402 paywalls, discovery",
+  "repository": {
+    "url": "https://github.com/pay-skill/pay-mcp",
+    "source": "github"
+  },
+  "version": "0.1.2",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@pay-skill/mcp",
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "Private key hex for importing an existing wallet (optional — generates new wallet if not set)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true,
+          "name": "PAYSKILL_SIGNER_KEY"
+        },
+        {
+          "description": "Network to use: mainnet or testnet (default: mainnet)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "PAY_NETWORK"
+        }
+      ]
+    }
+  ]
+}

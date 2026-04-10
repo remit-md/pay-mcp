@@ -29,7 +29,6 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@types/keytar": "^4.4.2",
     "@types/node": "^25.5.2",
     "tsx": "^4.0.0",
     "typescript": "^6.0.0"

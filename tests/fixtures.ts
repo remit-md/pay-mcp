@@ -11,7 +11,6 @@ import type {
   ContractsResponse,
   FundLinkResponse,
   WithdrawLinkResponse,
-  DiscoverService,
 } from "../src/types.js";
 
 export const AGENT_ADDR = "0x1111111111111111111111111111111111111111";
@@ -79,18 +78,6 @@ export const MOCK_WITHDRAW_LINK: WithdrawLinkResponse = {
   url: "https://pay-skill.com/withdraw?token=xyz789",
   token: "xyz789",
   expires_at: new Date(Date.now() + 3600000).toISOString(),
-};
-
-export const MOCK_SERVICE: DiscoverService = {
-  name: "Acme Weather",
-  domain: "weather.acme.com",
-  base_url: "https://weather.acme.com",
-  description: "Weather forecasts",
-  keywords: ["weather", "forecast"],
-  category: "data",
-  settlement: "direct",
-  price_range: "$0.01-$0.05",
-  website: "https://acme.com",
 };
 
 /**

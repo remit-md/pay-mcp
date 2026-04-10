@@ -55,12 +55,6 @@ export interface DiscoverService {
   website: string | null;
 }
 
-export interface PermitSignature {
-  v: number;
-  r: string;
-  s: string;
-}
-
 export interface ContractsResponse {
   router: string;
   tab: string;

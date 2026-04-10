@@ -65,7 +65,10 @@ export const DiscoverArgs = z.object({
 
 // ── Fund / Withdraw ───────────────────────────────────────────────
 
-export const FundArgs = z.object({});
+export const FundArgs = z.object({
+  message: z.string().optional().describe("Message to show the operator explaining why funds are needed (e.g. \"Need $50 for weather API calls\")"),
+  name: z.string().optional().describe("Agent display name shown on the funding page"),
+});
 
 export const WithdrawArgs = z.object({});
 

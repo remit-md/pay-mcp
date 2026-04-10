@@ -25,8 +25,15 @@ export function createFundTool(api: PayAPI): Tool {
         "or <30 seconds (direct USDC transfer on Base).",
       inputSchema: zodToMcpSchema(FundArgs),
     },
-    handler: async () => {
-      const result = await api.post<FundLinkResponse>("/links/fund");
+    handler: async (args: { message?: string; name?: string }) => {
+      const body: Record<string, unknown> = {};
+      if (args.message) {
+        body.messages = [{ role: "agent", text: args.message }];
+      }
+      if (args.name) {
+        body.agent_name = args.name;
+      }
+      const result = await api.post<FundLinkResponse>("/links/fund", body);
       return {
         url: result.url,
         expires_at: result.expires_at,

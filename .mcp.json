@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pay": {
+      "command": "npx",
+      "args": ["-y", "@pay-skill/mcp"],
+      "env": {
+        "PAY_NETWORK": "mainnet"
+      }
+    }
+  }
+}

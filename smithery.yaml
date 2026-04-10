@@ -1,6 +1,10 @@
 # Smithery registry configuration for @pay-skill/mcp
 # https://smithery.ai/server/@pay-skill/mcp
 
+build:
+  external:
+    - keytar
+
 startCommand:
   type: stdio
   configSchema:

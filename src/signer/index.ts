@@ -8,7 +8,7 @@
  */
 
 import { metaExists, loadMeta, loadKey as loadKeyFromKeychain, generateAndStore } from "./keychain.js";
-import { encExists, loadEncFile, decrypt } from "./keystore.js";
+import { encExists, loadEncFile, decrypt, encryptAndStore } from "./keystore.js";
 import { privateKeyToAddress } from "../crypto/address.js";
 import { randomBytes } from "node:crypto";
 
@@ -65,20 +65,30 @@ export async function resolveKey(): Promise<ResolvedKey> {
     }
   }
 
-  // 4. Auto-generate and store in OS keychain
+  // 4. Auto-generate and store
   console.error("pay-mcp: no wallet found, generating new keypair...");
   const privateKeyHex = randomBytes(32).toString("hex");
   const address = privateKeyToAddress(privateKeyHex);
 
+  // Try OS keychain first, fall back to encrypted file
   try {
     await generateAndStore("default", address, privateKeyHex);
     console.error(`pay-mcp: wallet created and stored in OS keychain: ${address}`);
     return { privateKeyHex, source: "generated" };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Failed to store generated key in OS keychain: ${msg}. ` +
-        "Set PAYSKILL_SIGNER_KEY env var as a fallback.",
-    );
+  } catch {
+    // keytar not available (e.g. bundled environment) — fall back to .enc file
+    try {
+      const passphrase = encryptAndStore("default", address, privateKeyHex);
+      console.error(`pay-mcp: wallet created and stored in encrypted keystore: ${address}`);
+      console.error(`pay-mcp: keystore passphrase: ${passphrase}`);
+      console.error("pay-mcp: set PAYSKILL_SIGNER_KEY to this passphrase to unlock on next run");
+      return { privateKeyHex, source: "generated" };
+    } catch (encErr) {
+      const msg = encErr instanceof Error ? encErr.message : String(encErr);
+      throw new Error(
+        `Failed to store generated key: ${msg}. ` +
+          "Set PAYSKILL_SIGNER_KEY env var as a fallback.",
+      );
+    }
   }
 }

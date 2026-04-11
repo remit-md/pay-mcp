@@ -5,10 +5,10 @@
  * Format matches CLI's keystore.rs exactly.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { scryptSync, createDecipheriv } from "node:crypto";
+import { scryptSync, createDecipheriv, createCipheriv, randomBytes } from "node:crypto";
 import type { EncryptedKeyFile } from "./types.js";
 
 function keysDir(): string {
@@ -102,4 +102,60 @@ export function decrypt(keyFile: EncryptedKeyFile, passphrase: string): string {
   plaintext.fill(0);
 
   return hex;
+}
+
+/**
+ * Encrypt a private key and write it to a .enc file.
+ * Returns the passphrase used for encryption (random, caller must store/display it).
+ */
+export function encryptAndStore(
+  name: string,
+  address: string,
+  privateKeyHex: string,
+): string {
+  const passphrase = randomBytes(16).toString("hex");
+  const salt = randomBytes(32);
+  const nonce = randomBytes(12);
+
+  const n = 32768;
+  const r = 8;
+  const p = 1;
+  const dklen = 32;
+
+  const derivedKey = scryptSync(passphrase, salt, dklen, {
+    N: n,
+    r,
+    p,
+    maxmem: 128 * n * r * 2,
+  });
+
+  const cipher = createCipheriv("aes-256-gcm", derivedKey, nonce);
+  const keyBytes = Buffer.from(privateKeyHex, "hex");
+  const encrypted = Buffer.concat([cipher.update(keyBytes), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  const ciphertextWithTag = Buffer.concat([encrypted, authTag]);
+
+  // Zero sensitive buffers
+  keyBytes.fill(0);
+
+  const keyFile: EncryptedKeyFile = {
+    version: 2,
+    name,
+    address: address.toLowerCase(),
+    created_at: new Date().toISOString(),
+    encryption: {
+      algorithm: "aes-256-gcm",
+      kdf: "scrypt",
+      kdf_params: { n, r, p, dklen },
+      salt: salt.toString("hex"),
+      nonce: nonce.toString("hex"),
+      ciphertext: ciphertextWithTag.toString("hex"),
+    },
+  };
+
+  const dir = keysDir();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(encPath(name), JSON.stringify(keyFile, null, 2), "utf-8");
+
+  return passphrase;
 }

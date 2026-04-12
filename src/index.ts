@@ -9,7 +9,7 @@
  *       "command": "npx",
  *       "args": ["@pay-skill/mcp"],
  *       "env": {
- *         "PAYSKILL_SIGNER_KEY": "0x...",
+ *         "PAYSKILL_KEY": "0x...",
  *         "PAY_NETWORK": "mainnet"
  *       }
  *     }
@@ -17,56 +17,38 @@
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Wallet } from "@pay-skill/sdk";
 import { createServer } from "./server.js";
-import { resolveKey } from "./signer/index.js";
-import { privateKeyToAddress } from "./crypto/address.js";
-import { PayAPI } from "./api.js";
-import type { Hex } from "viem";
 
-export const NETWORK_CONFIG = {
-  mainnet: {
-    chainId: 8453,
-    apiUrl: "https://pay-skill.com/api/v1",
-    name: "Base",
-  },
-  testnet: {
-    chainId: 84532,
-    apiUrl: "https://testnet.pay-skill.com/api/v1",
-    name: "Base Sepolia",
-  },
-} as const;
-
-export type NetworkName = keyof typeof NETWORK_CONFIG;
-
-function resolveNetwork(): NetworkName {
-  const env = process.env.PAY_NETWORK?.toLowerCase();
-  if (env === "testnet") return "testnet";
-  return "mainnet";
+function isTestnet(): boolean {
+  return process.env.PAY_NETWORK?.toLowerCase() === "testnet";
 }
 
 async function check(): Promise<void> {
-  const network = resolveNetwork();
-  const config = NETWORK_CONFIG[network];
-  console.log(`pay-mcp diagnostic check`);
-  console.log(`  network: ${config.name} (chain ${config.chainId})`);
-  console.log(`  api:     ${config.apiUrl}`);
+  const testnet = isTestnet();
+  const network = testnet ? "Base Sepolia" : "Base";
+  const chainId = testnet ? 84532 : 8453;
+  const apiUrl = testnet
+    ? "https://testnet.pay-skill.com/api/v1"
+    : "https://pay-skill.com/api/v1";
 
-  // Key resolution
-  let address: string;
+  console.log(`pay-mcp diagnostic check`);
+  console.log(`  network: ${network} (chain ${chainId})`);
+  console.log(`  api:     ${apiUrl}`);
+
+  let wallet: Wallet;
   try {
-    const resolved = await resolveKey();
-    address = privateKeyToAddress(resolved.privateKeyHex);
-    console.log(`  wallet:  ${address}`);
-    console.log(`  key:     ${resolved.source}`);
+    wallet = await Wallet.create({ testnet });
+    console.log(`  wallet:  ${wallet.address}`);
   } catch (err) {
     console.log(`  wallet:  FAILED - ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
-    return; // hint to TypeScript that this is unreachable
+    return;
   }
 
   // API connectivity
   try {
-    const resp = await fetch(`${config.apiUrl}/contracts`);
+    const resp = await fetch(`${apiUrl}/contracts`);
     if (resp.ok) {
       const data = (await resp.json()) as Record<string, unknown>;
       console.log(`  server:  OK (router: ${data.router})`);
@@ -81,10 +63,8 @@ async function check(): Promise<void> {
 
   // Auth check
   try {
-    const privateKey = (`0x${(await resolveKey()).privateKeyHex}`) as Hex;
-    const api = new PayAPI(privateKey, address, config.apiUrl, config.chainId);
-    const status = await api.get<{ balance_usdc: string }>("/status");
-    console.log(`  auth:    OK (balance: $${(Number(status.balance_usdc) / 1_000_000).toFixed(2)})`);
+    const status = await wallet.status();
+    console.log(`  auth:    OK (balance: $${status.balance.total.toFixed(2)})`);
   } catch (err) {
     console.log(`  auth:    FAILED - ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
@@ -94,30 +74,22 @@ async function check(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // --check diagnostic mode
   if (process.argv.includes("--check")) {
     await check();
     return;
   }
 
-  const network = resolveNetwork();
-  const config = NETWORK_CONFIG[network];
+  const testnet = isTestnet();
+  const wallet = await Wallet.create({ testnet });
 
-  const resolved = await resolveKey();
-  const address = privateKeyToAddress(resolved.privateKeyHex);
+  const network = testnet ? "Base Sepolia" : "Base";
+  const chainId = testnet ? 84532 : 8453;
+  console.error(`pay-mcp: starting on ${network} (chain ${chainId})`);
+  console.error(`pay-mcp: wallet ${wallet.address}`);
 
-  console.error(
-    `pay-mcp: starting on ${config.name} (chain ${config.chainId}), api: ${config.apiUrl}`,
-  );
-  console.error(`pay-mcp: wallet ${address} (key source: ${resolved.source})`);
-
-  const privateKey = (`0x${resolved.privateKeyHex}`) as Hex;
-  const api = new PayAPI(privateKey, address, config.apiUrl, config.chainId);
-
-  const server = createServer(api, privateKey);
+  const server = createServer(wallet);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  // Server runs until stdin closes
 }
 
 main().catch((err) => {

@@ -1,17 +1,14 @@
 /**
- * pay_fund — generate a fund link for depositing USDC into the wallet.
+ * pay_fund — generate a fund link for depositing USDC.
  * pay_withdraw — generate a withdraw link for pulling USDC out.
- *
- * Both create short-lived bearer-token URLs via the server.
  */
 
-import type { PayAPI } from "../api.js";
+import type { Wallet } from "@pay-skill/sdk";
 import type { Tool } from "./index.js";
 import { zodToMcpSchema } from "./schema.js";
 import { FundArgs, WithdrawArgs } from "./validate.js";
-import type { FundLinkResponse, WithdrawLinkResponse } from "../types.js";
 
-export function createFundTool(api: PayAPI): Tool {
+export function createFundTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_fund",
@@ -26,18 +23,13 @@ export function createFundTool(api: PayAPI): Tool {
       inputSchema: zodToMcpSchema(FundArgs),
     },
     handler: async (args: { message?: string; name?: string }) => {
-      const body: Record<string, unknown> = {};
-      if (args.message) {
-        body.messages = [{ role: "agent", text: args.message }];
-      }
-      if (args.name) {
-        body.agent_name = args.name;
-      }
-      const result = await api.post<FundLinkResponse>("/links/fund", body);
+      const url = await wallet.createFundLink({
+        message: args.message,
+        agentName: args.name,
+      });
       return {
-        url: result.url,
-        expires_at: result.expires_at,
-        wallet: api.getAddress(),
+        url,
+        wallet: wallet.address,
         tip: "Share this URL to fund the wallet. Link expires in 1 hour. " +
           "Poll pay_status to detect when funds arrive.",
       };
@@ -45,7 +37,7 @@ export function createFundTool(api: PayAPI): Tool {
   };
 }
 
-export function createWithdrawTool(api: PayAPI): Tool {
+export function createWithdrawTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_withdraw",
@@ -57,12 +49,8 @@ export function createWithdrawTool(api: PayAPI): Tool {
       inputSchema: zodToMcpSchema(WithdrawArgs),
     },
     handler: async () => {
-      const result = await api.post<WithdrawLinkResponse>("/links/withdraw");
-      return {
-        url: result.url,
-        expires_at: result.expires_at,
-        wallet: api.getAddress(),
-      };
+      const url = await wallet.createWithdrawLink();
+      return { url, wallet: wallet.address };
     },
   };
 }

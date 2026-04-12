@@ -1,24 +1,13 @@
 /**
- * pay_send — direct USDC payment with EIP-2612 permit.
- *
- * SKILL.md confirmation thresholds:
- * - < $10: proceed automatically
- * - $10-$100: include in plan, explain before executing
- * - > $100: require explicit confirmation
- *
- * These thresholds are communicated in the tool description and response,
- * but enforcement is up to the MCP client (Claude will respect them).
+ * pay_send — direct USDC payment.
  */
 
-import type { PayAPI } from "../api.js";
+import type { Wallet } from "@pay-skill/sdk";
 import type { Tool } from "./index.js";
 import { zodToMcpSchema } from "./schema.js";
 import { SendArgs } from "./validate.js";
-import { signPermit } from "../crypto/permit.js";
-import type { Hex } from "viem";
-import type { DirectPaymentResult } from "../types.js";
 
-export function createSendTool(api: PayAPI, privateKey: Hex): Tool {
+export function createSendTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_send",
@@ -37,36 +26,20 @@ export function createSendTool(api: PayAPI, privateKey: Hex): Tool {
     },
     handler: async (args) => {
       const { to, amount, memo } = args as { to: string; amount: number; memo?: string };
+      const result = await wallet.send(to, { micro: amount }, memo);
 
-      // Prepare and sign permit
-      const contracts = await api.getContracts();
-      const prepare = await api.post<{ hash: string; nonce: string; deadline: number }>(
-        "/permit/prepare",
-        { amount, spender: contracts.direct },
-      );
-      const permit = await signPermit(
-        privateKey,
-        prepare.hash as Hex,
-        prepare.nonce,
-        prepare.deadline,
-      );
-
-      const result = await api.post<DirectPaymentResult>("/direct", {
-        to,
-        amount,
-        memo: memo ?? "",
-        permit,
-      });
-
-      const usdAmount = (amount / 1_000_000).toFixed(2);
-      const feeAmount = (amount * 0.01 / 1_000_000).toFixed(2);
-      const recipientGets = (amount * 0.99 / 1_000_000).toFixed(2);
+      const usdAmount = result.amount.toFixed(2);
+      const usdFee = result.fee.toFixed(2);
+      const recipientGets = (result.amount - result.fee).toFixed(2);
       return {
-        ...result,
-        summary: `Sent $${usdAmount} to ${to}. Tx: ${result.tx_hash}`,
+        tx_hash: result.txHash,
+        status: result.status,
+        amount: result.amount,
+        fee: result.fee,
+        summary: `Sent $${usdAmount} to ${to}. Tx: ${result.txHash}`,
         fee_breakdown: {
           sent: `$${usdAmount}`,
-          fee: `$${feeAmount} (1%, paid by recipient)`,
+          fee: `$${usdFee} (1%, paid by recipient)`,
           recipient_receives: `$${recipientGets}`,
         },
       };

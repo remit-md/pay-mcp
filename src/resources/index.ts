@@ -1,17 +1,11 @@
 /**
  * MCP Resources — read-only data endpoints for the Pay wallet.
- *
- * Resources let MCP clients read wallet state without calling tools.
- * 14 static resources + 1 template: wallet state, network config, and
- * 9 reference docs (rules, errors, tabs, x402, funding, a2a, discovery,
- * examples, adoption) loaded on demand.
  */
 
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PayAPI } from "../api.js";
-import type { StatusResponse, Tab } from "../types.js";
+import type { Wallet } from "@pay-skill/sdk";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REFERENCES_DIR = join(__dirname, "..", "..", "skills", "pay", "references");
@@ -52,7 +46,7 @@ const RESOURCES: ResourceDefinition[] = [
   {
     uri: "pay://network",
     name: "Network Config",
-    description: "Current network configuration (chain ID, API URL, contract addresses)",
+    description: "Current network configuration (chain ID, API URL)",
     mimeType: "application/json",
   },
   {
@@ -158,7 +152,7 @@ function parseUri(uri: string): ParsedUri | null {
 
 export async function readResource(
   uri: string,
-  api: PayAPI,
+  wallet: Wallet,
 ): Promise<{ mimeType: string; text: string }> {
   const parsed = parseUri(uri);
   if (!parsed) throw new Error(`Unknown resource URI: ${uri}`);
@@ -167,29 +161,23 @@ export async function readResource(
 
   switch (parsed.type) {
     case "status": {
-      data = await api.get<StatusResponse>("/status");
+      data = await wallet.status();
       break;
     }
     case "tabs": {
-      data = await api.get<Tab[]>("/tabs");
+      data = await wallet.listTabs();
       break;
     }
     case "address": {
-      data = { address: api.getAddress() };
+      data = { address: wallet.address };
       break;
     }
     case "network": {
-      const contracts = await api.getContracts();
-      data = {
-        chain_id: api.getChainId(),
-        api_url: api.getApiUrl(),
-        network: api.getChainId() === 8453 ? "mainnet" : "testnet",
-        contracts,
-      };
+      data = { wallet: wallet.address };
       break;
     }
     case "tab": {
-      data = await api.get<Tab>(`/tabs/${parsed.id}`);
+      data = await wallet.getTab(parsed.id);
       break;
     }
     case "reference": {

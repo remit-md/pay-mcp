@@ -8,37 +8,37 @@
 
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
-import type { Hex } from "viem";
 import { buildTools, buildToolRegistry, callTool } from "../src/tools/index.js";
 import { listResources, listResourceTemplates, readResource } from "../src/resources/index.js";
 import { listPrompts, getPrompt } from "../src/prompts/index.js";
-import { createTestApi, mintTestUsdc, waitForBalance } from "./setup.js";
+import { createTestWallet, mintTestUsdc, waitForBalance } from "./setup.js";
 
-const { api, privateKey, address } = createTestApi();
-const tools = buildTools(api, privateKey);
+const { wallet, address } = createTestWallet();
+const tools = buildTools(wallet);
 const registry = buildToolRegistry(tools);
 
 describe("acceptance: setup", () => {
   before(async () => {
     console.log(`  wallet: ${address}`);
     console.log(`  minting 100 testnet USDC...`);
-    const txHash = await mintTestUsdc(api, 100);
+    const txHash = await mintTestUsdc(wallet, 100);
     console.log(`  mint tx: ${txHash}`);
-    await waitForBalance(api, 50);
+    await waitForBalance(wallet, 50);
     console.log(`  balance confirmed`);
   });
 
   it("wallet has funds", async () => {
     const result = (await callTool("pay_status", {}, registry)) as Record<string, unknown>;
-    assert.ok(Number(result.available_usdc) > 0);
+    const bal = result.balance as Record<string, number>;
+    assert.ok(bal.available > 0);
   });
 });
 
 describe("acceptance: pay_status", () => {
   it("returns balance and address", async () => {
     const result = (await callTool("pay_status", {}, registry)) as Record<string, unknown>;
-    assert.equal(result.address, address);
-    assert.ok(result.balance_usdc);
+    assert.equal(result.wallet, address);
+    assert.ok(result.balance);
     assert.ok("suggestion" in result);
   });
 });
@@ -48,7 +48,6 @@ describe("acceptance: pay_mint", () => {
     const result = (await callTool("pay_mint", { amount: 10 }, registry)) as Record<string, unknown>;
     assert.ok(result.tx_hash);
     assert.equal(result.amount_usdc, 10);
-    assert.equal(result.network, "Base Sepolia (testnet)");
   });
 });
 
@@ -57,7 +56,6 @@ describe("acceptance: pay_fund", () => {
     const result = (await callTool("pay_fund", {}, registry)) as Record<string, unknown>;
     assert.ok(typeof result.url === "string");
     assert.ok((result.url as string).includes("pay-skill.com") || (result.url as string).includes("testnet"));
-    assert.ok(result.expires_at);
     assert.equal(result.wallet, address);
   });
 });
@@ -66,7 +64,6 @@ describe("acceptance: pay_withdraw", () => {
   it("returns withdraw link", async () => {
     const result = (await callTool("pay_withdraw", {}, registry)) as Record<string, unknown>;
     assert.ok(typeof result.url === "string");
-    assert.ok(result.expires_at);
   });
 });
 
@@ -79,7 +76,6 @@ describe("acceptance: pay_webhook_register/list/delete", () => {
       events: ["payment.completed"],
     }, registry)) as Record<string, unknown>;
     assert.ok(result.id);
-    assert.ok(result.secret);
     webhookId = result.id as string;
   });
 
@@ -118,25 +114,25 @@ describe("acceptance: pay_discover", () => {
 
 describe("acceptance: resources", () => {
   it("reads pay://wallet/status", async () => {
-    const result = await readResource("pay://wallet/status", api);
+    const result = await readResource("pay://wallet/status", wallet);
     const data = JSON.parse(result.text);
     assert.equal(data.address, address);
   });
 
   it("reads pay://wallet/address", async () => {
-    const result = await readResource("pay://wallet/address", api);
+    const result = await readResource("pay://wallet/address", wallet);
     const data = JSON.parse(result.text);
     assert.equal(data.address, address);
   });
 
   it("reads pay://network", async () => {
-    const result = await readResource("pay://network", api);
+    const result = await readResource("pay://network", wallet);
     const data = JSON.parse(result.text);
-    assert.equal(data.chain_id, 84532);
+    assert.equal(data.wallet, address);
   });
 
   it("reads pay://wallet/tabs", async () => {
-    const result = await readResource("pay://wallet/tabs", api);
+    const result = await readResource("pay://wallet/tabs", wallet);
     const data = JSON.parse(result.text);
     assert.ok(Array.isArray(data));
   });

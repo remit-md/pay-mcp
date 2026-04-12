@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@pay-skill/sdk": "^0.2.0",
+    "@pay-skill/sdk": "^0.1.10",
     "zod": "^4.0.0"
   },
   "devDependencies": {

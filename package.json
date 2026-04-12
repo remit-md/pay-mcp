@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@pay-skill/sdk": "file:../sdk/typescript",
+    "@pay-skill/sdk": "^0.2.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {

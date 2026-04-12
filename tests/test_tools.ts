@@ -1,21 +1,17 @@
 /**
- * Tool handler unit tests with mock PayAPI.
+ * Tool handler unit tests with mock Wallet.
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { Hex } from "viem";
 import { buildTools, buildToolRegistry, callTool } from "../src/tools/index.js";
-import { createMockApi, AGENT_ADDR, PROVIDER_ADDR } from "./fixtures.js";
+import { createMockWallet, AGENT_ADDR, PROVIDER_ADDR } from "./fixtures.js";
 
-// Dummy private key (testnet only, no real funds)
-const TEST_KEY = "0x0000000000000000000000000000000000000000000000000000000000000001" as Hex;
-
-function setup(overrides?: Parameters<typeof createMockApi>[0]) {
-  const api = createMockApi(overrides);
-  const tools = buildTools(api, TEST_KEY);
+function setup(overrides?: Parameters<typeof createMockWallet>[0]) {
+  const wallet = createMockWallet(overrides);
+  const tools = buildTools(wallet);
   const registry = buildToolRegistry(tools);
-  return { api, tools, registry };
+  return { wallet, tools, registry };
 }
 
 describe("tool registry", () => {
@@ -51,19 +47,17 @@ describe("pay_status", () => {
   it("returns balance and suggestion", async () => {
     const { registry } = setup();
     const result = (await callTool("pay_status", {}, registry)) as Record<string, unknown>;
-    assert.equal(result.address, AGENT_ADDR);
-    assert.equal(result.balance_usdc, "50000000");
+    assert.equal(result.wallet, AGENT_ADDR);
     assert.ok("suggestion" in result);
+    assert.ok(result.balance);
   });
 
   it("suggests funding when empty", async () => {
     const { registry } = setup({
       status: {
         address: AGENT_ADDR,
-        balance_usdc: "0",
-        open_tabs: 0,
-        locked_usdc: "0",
-        available_usdc: "0",
+        balance: { total: 0, locked: 0, available: 0 },
+        openTabs: 0,
       },
     });
     const result = (await callTool("pay_status", {}, registry)) as Record<string, unknown>;
@@ -113,13 +107,13 @@ describe("pay_tab_close", () => {
 });
 
 describe("pay_tab_charge", () => {
-  it("returns charge_id", async () => {
+  it("returns chargeId", async () => {
     const { registry } = setup();
     const result = (await callTool("pay_tab_charge", {
       tab_id: "tab-001",
       amount: 100000,
     }, registry)) as Record<string, unknown>;
-    assert.equal(result.charge_id, "ch-001");
+    assert.equal(result.chargeId, "ch-001");
   });
 });
 
@@ -142,25 +136,21 @@ describe("pay_tab_list", () => {
     assert.ok(typeof result.summary === "string");
   });
 
-  it("flags idle tabs", async () => {
-    const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+  it("flags idle tabs (zero charges)", async () => {
     const { registry } = setup({
       tabs: [{
         id: "tab-idle",
-        agent: AGENT_ADDR,
         provider: PROVIDER_ADDR,
-        balance_remaining: "5000000",
-        total_charged: "0",
-        max_charge_per_call: "100000",
-        charge_count: 0,
-        pending_charge_count: 0,
-        pending_charge_total: "0",
-        effective_balance: "5000000",
+        amount: 5.0,
+        balanceRemaining: 5.0,
+        totalCharged: 0,
+        chargeCount: 0,
+        maxChargePerCall: 0.1,
+        totalWithdrawn: 0,
         status: "open" as const,
-        contract_version: 3,
-        created_at: oldDate,
-        closed_at: null,
-        auto_close_at: null,
+        pendingChargeCount: 0,
+        pendingChargeTotal: 0,
+        effectiveBalance: 5.0,
       }],
     });
     const result = (await callTool("pay_tab_list", {}, registry)) as Record<string, unknown>;
@@ -188,13 +178,12 @@ describe("pay_withdraw", () => {
 });
 
 describe("pay_webhook_register", () => {
-  it("returns webhook with secret", async () => {
+  it("returns webhook id", async () => {
     const { registry } = setup();
     const result = (await callTool("pay_webhook_register", {
       url: "https://example.com/hook",
     }, registry)) as Record<string, unknown>;
     assert.ok(result.id);
-    assert.ok(result.secret);
   });
 });
 
@@ -217,25 +206,13 @@ describe("pay_webhook_delete", () => {
 });
 
 describe("pay_mint", () => {
-  it("succeeds on testnet", async () => {
-    const { registry } = setup({ chainId: 84532 });
+  it("returns tx_hash", async () => {
+    const { registry } = setup();
     const result = (await callTool("pay_mint", {
       amount: 100,
     }, registry)) as Record<string, unknown>;
     assert.ok(result.tx_hash);
     assert.equal(result.amount_usdc, 100);
-  });
-
-  it("fails on mainnet", async () => {
-    const { registry } = setup({ chainId: 8453 });
-    await assert.rejects(
-      () => callTool("pay_mint", { amount: 100 }, registry),
-      (err: unknown) => {
-        assert.ok(err instanceof Error);
-        assert.ok(err.message.includes("testnet"));
-        return true;
-      },
-    );
   });
 });
 
@@ -265,17 +242,5 @@ describe("tool descriptions include SKILL.md context", () => {
     const { tools } = setup();
     const disc = tools.find((t) => t.definition.name === "pay_discover");
     assert.ok(disc?.definition.description.includes("don't have a URL"));
-  });
-});
-
-describe("no secrets in tool output", () => {
-  it("private key not in any tool result", async () => {
-    const { registry } = setup();
-    const names = ["pay_status", "pay_tab_list", "pay_fund", "pay_withdraw", "pay_webhook_list"];
-    for (const name of names) {
-      const result = await callTool(name, {}, registry);
-      const str = JSON.stringify(result);
-      assert.ok(!str.includes(TEST_KEY.slice(2)), `${name} leaks private key`);
-    }
   });
 });

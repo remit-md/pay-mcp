@@ -1,141 +1,121 @@
 /**
- * Test fixtures — mock PayAPI for unit tests.
+ * Test fixtures — mock Wallet for unit tests.
  */
 
-import type { PayAPI } from "../src/api.js";
 import type {
-  StatusResponse,
-  DirectPaymentResult,
+  Wallet,
+  SendResult,
   Tab,
+  ChargeResult,
+  Balance,
+  Status,
+  DiscoverService,
   WebhookRegistration,
-  ContractsResponse,
-  FundLinkResponse,
-  WithdrawLinkResponse,
-} from "../src/types.js";
+  MintResult,
+} from "@pay-skill/sdk";
 
 export const AGENT_ADDR = "0x1111111111111111111111111111111111111111";
 export const PROVIDER_ADDR = "0x2222222222222222222222222222222222222222";
 
-export const MOCK_CONTRACTS: ContractsResponse = {
-  router: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-  pay_tab: "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-  pay_direct: "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
-  pay_fee: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
-  usdc: "0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
-  chain_id: 84532,
-};
-
-export const MOCK_STATUS: StatusResponse = {
-  address: AGENT_ADDR,
-  balance_usdc: "50000000", // $50
-  open_tabs: 2,
-  locked_usdc: "10000000", // $10
-  available_usdc: "40000000", // $40
-};
-
 export const MOCK_TAB: Tab = {
   id: "tab-001",
-  agent: AGENT_ADDR,
   provider: PROVIDER_ADDR,
-  balance_remaining: "45000000",
-  total_charged: "5000000",
-  max_charge_per_call: "500000",
-  charge_count: 10,
-  pending_charge_count: 2,
-  pending_charge_total: "1000000",
-  effective_balance: "44000000",
+  amount: 50.0,
+  balanceRemaining: 45.0,
+  totalCharged: 5.0,
+  chargeCount: 10,
+  maxChargePerCall: 0.5,
+  totalWithdrawn: 0,
   status: "open",
-  contract_version: 3,
-  created_at: new Date().toISOString(),
-  closed_at: null,
-  auto_close_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  pendingChargeCount: 2,
+  pendingChargeTotal: 1.0,
+  effectiveBalance: 44.0,
 };
 
-export const MOCK_DIRECT_RESULT: DirectPaymentResult = {
-  tx_hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-  from: AGENT_ADDR,
-  to: PROVIDER_ADDR,
-  amount: "5000000",
-  fee: "50000",
+export const MOCK_STATUS: Status = {
+  address: AGENT_ADDR,
+  balance: { total: 50.0, locked: 10.0, available: 40.0 },
+  openTabs: 2,
+};
+
+export const MOCK_SEND_RESULT: SendResult = {
+  txHash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
   status: "confirmed",
+  amount: 5.0,
+  fee: 0.05,
 };
 
 export const MOCK_WEBHOOK: WebhookRegistration = {
   id: "wh-001",
   url: "https://example.com/webhook",
   events: ["payment.completed"],
-  secret: "whsec_test123",
-  created_at: new Date().toISOString(),
-};
-
-export const MOCK_FUND_LINK: FundLinkResponse = {
-  url: "https://pay-skill.com/fund?token=abc123",
-  token: "abc123",
-  expires_at: new Date(Date.now() + 3600000).toISOString(),
-};
-
-export const MOCK_WITHDRAW_LINK: WithdrawLinkResponse = {
-  url: "https://pay-skill.com/withdraw?token=xyz789",
-  token: "xyz789",
-  expires_at: new Date(Date.now() + 3600000).toISOString(),
 };
 
 /**
- * Create a mock PayAPI with all methods stubbed.
+ * Create a mock Wallet with all public methods stubbed.
  * Override specific responses by passing partial overrides.
  */
-export function createMockApi(overrides?: {
-  status?: StatusResponse;
+export function createMockWallet(overrides?: {
+  status?: Status;
+  balance?: Balance;
   tabs?: Tab[];
   tab?: Tab;
-  direct?: DirectPaymentResult;
+  sendResult?: SendResult;
+  chargeResult?: ChargeResult;
   webhook?: WebhookRegistration;
   webhooks?: WebhookRegistration[];
-  fundLink?: FundLinkResponse;
-  withdrawLink?: WithdrawLinkResponse;
-  chainId?: number;
-}): PayAPI {
+  fundUrl?: string;
+  withdrawUrl?: string;
+  mintResult?: MintResult;
+  discoverServices?: DiscoverService[];
+}): Wallet {
   const status = overrides?.status ?? MOCK_STATUS;
+  const balance = overrides?.balance ?? status.balance;
   const tabs = overrides?.tabs ?? [MOCK_TAB];
   const tab = overrides?.tab ?? MOCK_TAB;
-  const direct = overrides?.direct ?? MOCK_DIRECT_RESULT;
+  const sendResult = overrides?.sendResult ?? MOCK_SEND_RESULT;
+  const chargeResult = overrides?.chargeResult ?? { chargeId: "ch-001", status: "buffered" };
   const webhook = overrides?.webhook ?? MOCK_WEBHOOK;
   const webhooks = overrides?.webhooks ?? [MOCK_WEBHOOK];
-  const fundLink = overrides?.fundLink ?? MOCK_FUND_LINK;
-  const withdrawLink = overrides?.withdrawLink ?? MOCK_WITHDRAW_LINK;
-  const chainId = overrides?.chainId ?? 84532;
+  const fundUrl = overrides?.fundUrl ?? "https://pay-skill.com/fund?token=abc123";
+  const withdrawUrl = overrides?.withdrawUrl ?? "https://pay-skill.com/withdraw?token=xyz789";
+  const mintResult = overrides?.mintResult ?? { txHash: "0x" + "00".repeat(32), amount: 100.0 };
+  const discoverServices = overrides?.discoverServices ?? [];
 
   return {
-    getAddress: () => AGENT_ADDR,
-    getChainId: () => chainId,
-    getApiUrl: () => "https://testnet.pay-skill.com/api/v1",
-    getContracts: async () => MOCK_CONTRACTS,
-    get: async <T>(path: string): Promise<T> => {
-      if (path === "/status") return status as T;
-      if (path.startsWith("/status/")) return status as T;
-      if (path === "/tabs") return tabs as T;
-      if (path.startsWith("/tabs/")) return tab as T;
-      if (path === "/webhooks") return webhooks as T;
-      throw new Error(`Unmocked GET: ${path}`);
-    },
-    post: async <T>(path: string, _body?: unknown): Promise<T> => {
-      if (path === "/permit/prepare") {
-        return { hash: "0x" + "ab".repeat(32), nonce: "1", deadline: 9999999999 } as T;
-      }
-      if (path === "/direct") return direct as T;
-      if (path === "/tabs") return tab as T;
-      if (path.endsWith("/close")) return { ...tab, status: "closed" } as T;
-      if (path.endsWith("/charge")) return { charge_id: "ch-001" } as T;
-      if (path.endsWith("/topup")) return tab as T;
-      if (path === "/webhooks") return webhook as T;
-      if (path === "/links/fund") return fundLink as T;
-      if (path === "/links/withdraw") return withdrawLink as T;
-      if (path === "/mint") return { tx_hash: "0x" + "00".repeat(32) } as T;
-      throw new Error(`Unmocked POST: ${path}`);
-    },
-    del: async <T>(path: string): Promise<T> => {
-      if (path.startsWith("/webhooks/")) return {} as T;
-      throw new Error(`Unmocked DELETE: ${path}`);
-    },
-  } as unknown as PayAPI;
+    address: AGENT_ADDR,
+
+    // Direct payment
+    send: async () => sendResult,
+
+    // Tabs
+    openTab: async () => tab,
+    closeTab: async () => ({ ...tab, status: "closed" as const }),
+    topUpTab: async () => tab,
+    listTabs: async () => tabs,
+    getTab: async () => tab,
+    chargeTab: async () => chargeResult,
+
+    // x402
+    request: async (url: string) => new Response(JSON.stringify({ data: "ok" }), { status: 200 }),
+
+    // Wallet
+    balance: async () => balance,
+    status: async () => status,
+
+    // Discovery
+    discover: async () => discoverServices,
+
+    // Funding
+    createFundLink: async () => fundUrl,
+    createWithdrawLink: async () => withdrawUrl,
+
+    // Webhooks
+    registerWebhook: async () => webhook,
+    listWebhooks: async () => webhooks,
+    deleteWebhook: async () => {},
+
+    // Testnet
+    mint: async () => mintResult,
+  } as unknown as Wallet;
 }

@@ -5,17 +5,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { listResources, listResourceTemplates, readResource } from "../src/resources/index.js";
-import { createMockApi, AGENT_ADDR } from "./fixtures.js";
+import { createMockWallet, AGENT_ADDR } from "./fixtures.js";
 
 describe("listResources", () => {
-  it("returns 4 static resources", () => {
+  it("returns 13 static resources (4 wallet/network + 9 references)", () => {
     const resources = listResources();
-    assert.equal(resources.length, 4);
+    assert.equal(resources.length, 13);
     for (const r of resources) {
       assert.ok(r.uri);
       assert.ok(r.name);
       assert.ok(r.description);
-      assert.equal(r.mimeType, "application/json");
     }
   });
 
@@ -37,45 +36,43 @@ describe("listResourceTemplates", () => {
 });
 
 describe("readResource", () => {
-  const api = createMockApi();
+  const wallet = createMockWallet();
 
-  it("pay://wallet/status returns balance", async () => {
-    const result = await readResource("pay://wallet/status", api);
+  it("pay://wallet/status returns status", async () => {
+    const result = await readResource("pay://wallet/status", wallet);
     assert.equal(result.mimeType, "application/json");
     const data = JSON.parse(result.text);
     assert.equal(data.address, AGENT_ADDR);
-    assert.ok(data.balance_usdc);
+    assert.ok(data.balance);
   });
 
   it("pay://wallet/tabs returns array", async () => {
-    const result = await readResource("pay://wallet/tabs", api);
+    const result = await readResource("pay://wallet/tabs", wallet);
     const data = JSON.parse(result.text);
     assert.ok(Array.isArray(data));
   });
 
   it("pay://wallet/address returns address", async () => {
-    const result = await readResource("pay://wallet/address", api);
+    const result = await readResource("pay://wallet/address", wallet);
     const data = JSON.parse(result.text);
     assert.equal(data.address, AGENT_ADDR);
   });
 
-  it("pay://network returns chain info", async () => {
-    const result = await readResource("pay://network", api);
+  it("pay://network returns wallet info", async () => {
+    const result = await readResource("pay://network", wallet);
     const data = JSON.parse(result.text);
-    assert.equal(data.chain_id, 84532);
-    assert.ok(data.api_url);
-    assert.ok(data.contracts);
+    assert.equal(data.wallet, AGENT_ADDR);
   });
 
   it("pay://tab/{id} returns tab detail", async () => {
-    const result = await readResource("pay://tab/tab-001", api);
+    const result = await readResource("pay://tab/tab-001", wallet);
     const data = JSON.parse(result.text);
     assert.equal(data.id, "tab-001");
   });
 
   it("rejects unknown URI", async () => {
     await assert.rejects(
-      () => readResource("pay://unknown/thing", api),
+      () => readResource("pay://unknown/thing", wallet),
       (err: unknown) => {
         assert.ok(err instanceof Error);
         assert.ok(err.message.includes("Unknown resource"));

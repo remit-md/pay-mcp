@@ -1,9 +1,17 @@
 {
   "name": "@pay-skill/mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "mcpName": "io.github.pay-skill/pay-mcp",
   "description": "MCP server for Pay — USDC payments for AI agents on Base",
   "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    }
+  },
   "bin": {
     "pay-mcp": "./dist/index.js"
   },

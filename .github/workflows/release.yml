@@ -80,12 +80,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build stdio bundle
-        run: npx @smithery/cli@latest mcp build --transport stdio
-
       - name: Publish to Smithery
         if: env.SMITHERY_API_KEY != ''
-        run: echo "$SMITHERY_API_KEY" | npx @smithery/cli@latest mcp publish --name remitmd-5m89/pay-mcp --from-build .smithery/stdio
+        continue-on-error: true
+        run: echo "$SMITHERY_API_KEY" | npx @smithery/cli@latest mcp publish --name remitmd-5m89/pay-mcp
         env:
           SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
 

@@ -1,16 +1,13 @@
 /**
  * pay_discover — search for discoverable paid API services.
- *
- * Public endpoint, no auth required. Sorted by daily call volume by default.
  */
 
-import type { PayAPI } from "../api.js";
+import type { Wallet } from "@pay-skill/sdk";
 import type { Tool } from "./index.js";
 import { zodToMcpSchema } from "./schema.js";
 import { DiscoverArgs } from "./validate.js";
-import type { DiscoverService } from "../types.js";
 
-export function createDiscoverTool(api: PayAPI): Tool {
+export function createDiscoverTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_discover",
@@ -30,33 +27,13 @@ export function createDiscoverTool(api: PayAPI): Tool {
     },
     handler: async (args) => {
       const { query, sort, category, settlement } = args as {
-        query?: string;
-        sort?: string;
-        category?: string;
-        settlement?: string;
+        query?: string; sort?: string; category?: string; settlement?: string;
       };
-
-      const params = new URLSearchParams();
-      if (query) params.set("q", query);
-      if (sort) params.set("sort", sort);
-      if (category) params.set("category", category);
-      if (settlement) params.set("settlement", settlement);
-
-      const qs = params.toString();
-      const url = `${api.getApiUrl()}/discover${qs ? `?${qs}` : ""}`;
-      const resp = await fetch(url);
-
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        throw new Error(`Discover failed: ${resp.status} ${body}`);
-      }
-
-      const data = (await resp.json()) as { services: DiscoverService[] };
-
+      const services = await wallet.discover(query, { sort, category, settlement });
       return {
-        services: data.services,
-        count: data.services.length,
-        tip: data.services.length > 0
+        services,
+        count: services.length,
+        tip: services.length > 0
           ? "Use pay_request with a service's base_url + endpoint path to call it."
           : query
             ? `No services found for "${query}". Try broader keywords.`

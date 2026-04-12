@@ -13,8 +13,7 @@ import {
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { PayAPI } from "./api.js";
-import type { Hex } from "viem";
+import type { Wallet } from "@pay-skill/sdk";
 import { buildTools, buildToolRegistry, callTool } from "./tools/index.js";
 import {
   listResources,
@@ -32,17 +31,17 @@ const SERVER_INFO = { name: "@pay-skill/mcp", version: pkg.version };
 
 /**
  * Create and configure the MCP server with all tools, resources, and prompts.
- * The PayAPI instance is captured in closure — the private key never leaves this process.
+ * The Wallet instance handles all signing and authenticated HTTP internally.
  */
-export function createServer(api: PayAPI, privateKey: Hex): Server {
+export function createServer(wallet: Wallet): Server {
   const server = new Server(SERVER_INFO, {
     capabilities: { tools: {}, resources: {}, prompts: {} },
   });
 
-  const tools = buildTools(api, privateKey);
+  const tools = buildTools(wallet);
   const registry = buildToolRegistry(tools);
 
-  // ─── Tools ──────────────────────────────────────────────────────────────────
+  // --- Tools ---
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: tools.map((t) => t.definition),
@@ -59,7 +58,7 @@ export function createServer(api: PayAPI, privateKey: Hex): Server {
     }
   });
 
-  // ─── Resources ──────────────────────────────────────────────────────────────
+  // --- Resources ---
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
     resources: listResources(),
@@ -72,7 +71,7 @@ export function createServer(api: PayAPI, privateKey: Hex): Server {
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
     try {
-      const result = await readResource(uri, api);
+      const result = await readResource(uri, wallet);
       return { contents: [{ uri, ...result }] };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -80,7 +79,7 @@ export function createServer(api: PayAPI, privateKey: Hex): Server {
     }
   });
 
-  // ─── Prompts ────────────────────────────────────────────────────────────────
+  // --- Prompts ---
 
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({
     prompts: listPrompts(),

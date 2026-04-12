@@ -1,31 +1,18 @@
 /**
- * pay_webhook_register — register a webhook for payment events.
- * pay_webhook_list — list all registered webhooks.
- * pay_webhook_delete — delete a webhook by ID.
+ * pay_webhook_register, pay_webhook_list, pay_webhook_delete
  */
 
-import type { PayAPI } from "../api.js";
+import type { Wallet } from "@pay-skill/sdk";
 import type { Tool } from "./index.js";
 import { zodToMcpSchema } from "./schema.js";
-import {
-  WebhookRegisterArgs,
-  WebhookListArgs,
-  WebhookDeleteArgs,
-} from "./validate.js";
-import type { WebhookRegistration } from "../types.js";
+import { WebhookRegisterArgs, WebhookListArgs, WebhookDeleteArgs } from "./validate.js";
 
 const VALID_EVENTS = [
-  "tab.opened",
-  "tab.low_balance",
-  "tab.closing_soon",
-  "tab.closed",
-  "tab.topped_up",
-  "tab.settled",
-  "payment.completed",
-  "x402.settled",
+  "tab.opened", "tab.low_balance", "tab.closing_soon", "tab.closed",
+  "tab.topped_up", "tab.settled", "payment.completed", "x402.settled",
 ];
 
-export function createWebhookTools(api: PayAPI): Tool[] {
+export function createWebhookTools(wallet: Wallet): Tool[] {
   return [
     {
       definition: {
@@ -39,14 +26,9 @@ export function createWebhookTools(api: PayAPI): Tool[] {
       },
       handler: async (args) => {
         const { url, events, secret } = args as {
-          url: string;
-          events?: string[];
-          secret?: string;
+          url: string; events?: string[]; secret?: string;
         };
-        const body: Record<string, unknown> = { url };
-        if (events) body.events = events;
-        if (secret) body.secret = secret;
-        return api.post<WebhookRegistration>("/webhooks", body);
+        return wallet.registerWebhook(url, events, secret);
       },
     },
     {
@@ -55,9 +37,7 @@ export function createWebhookTools(api: PayAPI): Tool[] {
         description: "List all registered webhooks for your wallet.",
         inputSchema: zodToMcpSchema(WebhookListArgs),
       },
-      handler: async () => {
-        return api.get<WebhookRegistration[]>("/webhooks");
-      },
+      handler: async () => wallet.listWebhooks(),
     },
     {
       definition: {
@@ -67,7 +47,7 @@ export function createWebhookTools(api: PayAPI): Tool[] {
       },
       handler: async (args) => {
         const { id } = args as { id: string };
-        await api.del(`/webhooks/${id}`);
+        await wallet.deleteWebhook(id);
         return { deleted: true, id };
       },
     },

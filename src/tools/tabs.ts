@@ -1,29 +1,23 @@
 /**
  * Tab tools — open, close, charge, topup, list.
- *
- * Tabs are pre-funded metered accounts. Agent locks USDC, provider charges
- * incrementally. Charges are batched on-chain for gas efficiency.
  */
 
-import type { PayAPI } from "../api.js";
+import type { Wallet } from "@pay-skill/sdk";
 import type { Tool } from "./index.js";
 import { zodToMcpSchema } from "./schema.js";
 import { TabOpenArgs, TabCloseArgs, TabChargeArgs, TabTopupArgs, TabListArgs } from "./validate.js";
-import { signPermit } from "../crypto/permit.js";
-import type { Hex } from "viem";
-import type { Tab } from "../types.js";
 
-export function createTabTools(api: PayAPI, privateKey: Hex): Tool[] {
+export function createTabTools(wallet: Wallet): Tool[] {
   return [
-    createTabOpenTool(api, privateKey),
-    createTabCloseTool(api),
-    createTabChargeTool(api),
-    createTabTopupTool(api, privateKey),
-    createTabListTool(api),
+    createTabOpenTool(wallet),
+    createTabCloseTool(wallet),
+    createTabChargeTool(wallet),
+    createTabTopupTool(wallet),
+    createTabListTool(wallet),
   ];
 }
 
-function createTabOpenTool(api: PayAPI, privateKey: Hex): Tool {
+function createTabOpenTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_tab_open",
@@ -41,43 +35,19 @@ function createTabOpenTool(api: PayAPI, privateKey: Hex): Tool {
     },
     handler: async (args) => {
       const { provider, amount, max_charge } = args as {
-        provider: string;
-        amount: number;
-        max_charge: number;
+        provider: string; amount: number; max_charge: number;
       };
-
-      const contracts = await api.getContracts();
-      const prepare = await api.post<{ hash: string; nonce: string; deadline: number }>(
-        "/permit/prepare",
-        { amount, spender: contracts.tab },
-      );
-      const permit = await signPermit(
-        privateKey,
-        prepare.hash as Hex,
-        prepare.nonce,
-        prepare.deadline,
-      );
-
-      const tab = await api.post<Tab>("/tabs", {
-        provider,
-        amount,
-        max_charge_per_call: max_charge,
-        permit,
-      });
-
-      const usdAmount = (amount / 1_000_000).toFixed(2);
-      const activationFee = Math.max(100_000, Math.floor(amount * 0.01));
-      const usdFee = (activationFee / 1_000_000).toFixed(2);
+      const tab = await wallet.openTab(provider, { micro: amount }, { micro: max_charge });
       return {
         ...tab,
-        summary: `Opened tab ${tab.id} with $${usdAmount} USDC. Activation fee: $${usdFee}. ` +
-          `Provider can charge up to ${max_charge} per call.`,
+        summary: `Opened tab ${tab.id} with $${tab.amount.toFixed(2)} USDC. ` +
+          `Provider can charge up to $${tab.maxChargePerCall.toFixed(2)} per call.`,
       };
     },
   };
 }
 
-function createTabCloseTool(api: PayAPI): Tool {
+function createTabCloseTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_tab_close",
@@ -89,28 +59,24 @@ function createTabCloseTool(api: PayAPI): Tool {
     },
     handler: async (args) => {
       const { tab_id } = args as { tab_id: string };
-      const tab = await api.post<Tab>(`/tabs/${tab_id}/close`, {});
-
-      // Distribution breakdown
-      const totalCharged = Number(tab.total_charged);
-      const providerGets = (totalCharged * 0.99 / 1_000_000).toFixed(2);
-      const feeAmount = (totalCharged * 0.01 / 1_000_000).toFixed(2);
-
+      const tab = await wallet.closeTab(tab_id);
+      const providerGets = (tab.totalCharged * 0.99).toFixed(2);
+      const feeAmount = (tab.totalCharged * 0.01).toFixed(2);
       return {
         ...tab,
         summary: `Closed tab ${tab_id}.`,
         distribution: {
-          total_charged: `$${(totalCharged / 1_000_000).toFixed(2)}`,
+          total_charged: `$${tab.totalCharged.toFixed(2)}`,
           provider_receives: `$${providerGets} (99%)`,
           fee: `$${feeAmount} (1%)`,
-          charges: tab.charge_count,
+          charges: tab.chargeCount,
         },
       };
     },
   };
 }
 
-function createTabChargeTool(api: PayAPI): Tool {
+function createTabChargeTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_tab_charge",
@@ -121,13 +87,12 @@ function createTabChargeTool(api: PayAPI): Tool {
     },
     handler: async (args) => {
       const { tab_id, amount } = args as { tab_id: string; amount: number };
-      const result = await api.post<{ charge_id: string }>(`/tabs/${tab_id}/charge`, { amount });
-      return result;
+      return wallet.chargeTab(tab_id, { micro: amount });
     },
   };
 }
 
-function createTabTopupTool(api: PayAPI, privateKey: Hex): Tool {
+function createTabTopupTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_tab_topup",
@@ -140,30 +105,16 @@ function createTabTopupTool(api: PayAPI, privateKey: Hex): Tool {
     },
     handler: async (args) => {
       const { tab_id, amount } = args as { tab_id: string; amount: number };
-
-      const contracts = await api.getContracts();
-      const prepare = await api.post<{ hash: string; nonce: string; deadline: number }>(
-        "/permit/prepare",
-        { amount, spender: contracts.tab },
-      );
-      const permit = await signPermit(
-        privateKey,
-        prepare.hash as Hex,
-        prepare.nonce,
-        prepare.deadline,
-      );
-
-      const tab = await api.post<Tab>(`/tabs/${tab_id}/topup`, { amount, permit });
-      const usdAmount = (amount / 1_000_000).toFixed(2);
+      const tab = await wallet.topUpTab(tab_id, { micro: amount });
       return {
         ...tab,
-        summary: `Topped up tab ${tab_id} with $${usdAmount} USDC.`,
+        summary: `Topped up tab ${tab_id} with $${(amount / 1_000_000).toFixed(2)} USDC.`,
       };
     },
   };
 }
 
-function createTabListTool(api: PayAPI): Tool {
+function createTabListTool(wallet: Wallet): Tool {
   return {
     definition: {
       name: "pay_tab_list",
@@ -175,43 +126,28 @@ function createTabListTool(api: PayAPI): Tool {
       inputSchema: zodToMcpSchema(TabListArgs),
     },
     handler: async () => {
-      const tabs = await api.get<Tab[]>("/tabs");
-      const now = Date.now();
-      const IDLE_DAYS = 7;
-      const idleMs = IDLE_DAYS * 24 * 60 * 60 * 1000;
+      const tabs = await wallet.listTabs();
 
       const flagged = tabs.map((tab) => {
         if (tab.status !== "open") return { ...tab, idle: false, low_balance: false };
-
-        // Idle: open with zero charges and created > 7 days ago
-        const age = now - new Date(tab.created_at).getTime();
-        const isIdle = tab.charge_count === 0 && age > idleMs;
-
-        // Low balance: effective balance below 10% of max_charge (less than ~10 calls)
-        const effective = Number(tab.effective_balance);
-        const maxCharge = Number(tab.max_charge_per_call);
-        const isLow = maxCharge > 0 && effective < maxCharge * 10 && effective > 0;
-
+        const isIdle = tab.chargeCount === 0;
+        const isLow = tab.maxChargePerCall > 0 &&
+          tab.effectiveBalance < tab.maxChargePerCall * 10 &&
+          tab.effectiveBalance > 0;
         return { ...tab, idle: isIdle, low_balance: isLow };
       });
 
       const openTabs = flagged.filter((t) => t.status === "open");
       const idleCount = openTabs.filter((t) => t.idle).length;
       const lowCount = openTabs.filter((t) => t.low_balance).length;
-      const totalLocked = openTabs.reduce(
-        (sum, t) => sum + Number(t.balance_remaining),
-        0,
-      );
+      const totalLocked = openTabs.reduce((sum, t) => sum + t.balanceRemaining, 0);
 
       const parts = [`${openTabs.length} open tab(s)`];
-      if (totalLocked > 0) parts.push(`$${(totalLocked / 1_000_000).toFixed(2)} locked`);
+      if (totalLocked > 0) parts.push(`$${totalLocked.toFixed(2)} locked`);
       if (idleCount > 0) parts.push(`${idleCount} idle (close to free funds)`);
       if (lowCount > 0) parts.push(`${lowCount} low balance (consider top-up)`);
 
-      return {
-        tabs: flagged,
-        summary: parts.join(", ") + ".",
-      };
+      return { tabs: flagged, summary: parts.join(", ") + "." };
     },
   };
 }

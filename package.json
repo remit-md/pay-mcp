@@ -1,6 +1,6 @@
 {
   "name": "@pay-skill/mcp",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "mcpName": "io.github.pay-skill/pay-mcp",
   "description": "MCP server for Pay — USDC payments for AI agents on Base",
   "type": "module",
@@ -24,8 +24,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "keytar": "^7.9.0",
-    "viem": "^2.0.0",
+    "@pay-skill/sdk": "file:../sdk/typescript",
     "zod": "^4.0.0"
   },
   "devDependencies": {

@@ -50,12 +50,6 @@ export async function ensureTestBalance(wallet: Wallet): Promise<string | null> 
   return result.txHash;
 }
 
-/** @deprecated use ensureTestBalance — this bypasses the rate-limit guard. */
-export async function mintTestUsdc(wallet: Wallet, amount: number): Promise<string> {
-  const result = await wallet.mint(amount);
-  return result.txHash;
-}
-
 export async function waitForBalance(
   wallet: Wallet,
   minUsdc: number,

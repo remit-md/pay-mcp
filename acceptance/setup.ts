@@ -11,9 +11,7 @@
 
 import { Wallet } from "@pay-skill/sdk";
 
-/** USDC floor below which we top up the test wallet. */
-const TEST_BALANCE_FLOOR_USDC = 50;
-/** USDC amount requested from the server's /mint endpoint when topping up. */
+/** USDC amount requested from the server's /mint endpoint at startup. */
 const TEST_MINT_AMOUNT_USDC = 100;
 
 export function createTestWallet(): { wallet: Wallet; address: string } {
@@ -24,49 +22,46 @@ export function createTestWallet(): { wallet: Wallet; address: string } {
 }
 
 /**
- * Top up the shared CI wallet to at least TEST_BALANCE_FLOOR_USDC.
+ * Fund the shared CI wallet at startup.
  *
- * Server-side /api/v1/mint is rate-limited at 1 call per wallet per hour
- * (MINT_RATE_LIMIT_SECS in server/src/routes/mint.rs). CI runs reuse the
- * same wallet, so we skip the mint when the wallet already holds enough
- * from a previous run — otherwise back-to-back runs inside one hour would
- * 429 and break the suite.
+ * Calls wallet.mint() once. The server's /api/v1/mint endpoint submits
+ * USDC.mint on-chain via the relayer and awaits confirmation (see
+ * server/src/chain/chain_client.rs send_call_and_wait), so when this
+ * Promise resolves the tx IS mined and the balance IS on-chain.
  *
- * Returns the mint tx hash when a mint happened, null when skipped.
+ * Two guards:
+ *   - Server-side /mint is rate-limited 1/wallet/hour (MINT_RATE_LIMIT_SECS
+ *     in server/src/routes/mint.rs). Back-to-back CI runs on the same
+ *     wallet will 429 — that means the previous run already funded the
+ *     wallet, so we swallow the rate-limit error and proceed.
+ *   - We deliberately do NOT verify balance via wallet.balance() after
+ *     minting. The published SDK (0.2.3 at time of writing) has a latent
+ *     bug in both TS and Python balance() methods: they divide the
+ *     server's dollar-formatted "100.00" string by 1_000_000, reporting
+ *     0.0001 instead of 100. Server truth is on-chain and the mint
+ *     await already proves confirmation.
+ *
+ * Returns the mint tx hash on success, null on a rate-limit skip.
  */
 export async function ensureTestBalance(wallet: Wallet): Promise<string | null> {
-  const before = await wallet.balance();
-  if (before.available >= TEST_BALANCE_FLOOR_USDC) {
-    console.log(
-      `  balance $${before.available} already >= $${TEST_BALANCE_FLOOR_USDC}, skipping mint`,
-    );
-    return null;
+  try {
+    const result = await wallet.mint(TEST_MINT_AMOUNT_USDC);
+    return result.txHash;
+  } catch (err) {
+    if (isMintRateLimitError(err)) {
+      console.log(
+        `  mint rate-limited — wallet funded by a previous run in the last hour, proceeding`,
+      );
+      return null;
+    }
+    throw err;
   }
-  console.log(
-    `  balance $${before.available} below $${TEST_BALANCE_FLOOR_USDC}, minting ${TEST_MINT_AMOUNT_USDC}...`,
-  );
-  const result = await wallet.mint(TEST_MINT_AMOUNT_USDC);
-  await waitForBalance(wallet, TEST_BALANCE_FLOOR_USDC);
-  return result.txHash;
-}
-
-export async function waitForBalance(
-  wallet: Wallet,
-  minUsdc: number,
-  timeoutMs = 30_000,
-): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const bal = await wallet.balance();
-    if (bal.available >= minUsdc) return;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error(`Balance did not reach $${minUsdc} within ${timeoutMs}ms`);
 }
 
 /**
  * True if the given error message looks like a /mint rate-limit response.
- * Used to skip the pay_mint tool test on reused CI wallets.
+ * Used to skip the pay_mint tool test on reused CI wallets and to
+ * tolerate rate-limit errors in the startup fund step.
  */
 export function isMintRateLimitError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);

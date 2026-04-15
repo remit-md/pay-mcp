@@ -13,12 +13,20 @@ import { listResources, listResourceTemplates, readResource } from "../src/resou
 import { listPrompts, getPrompt } from "../src/prompts/index.js";
 import { createTestWallet, ensureTestBalance, isMintRateLimitError } from "./setup.js";
 
-const { wallet, address: addressRaw } = createTestWallet();
-// Server returns addresses lowercased; viem's privateKeyToAccount returns
-// EIP-55 checksum case. Normalize to lowercase for assertion comparisons.
-const address = addressRaw.toLowerCase();
+const { wallet, address } = createTestWallet();
 const tools = buildTools(wallet);
 const registry = buildToolRegistry(tools);
+
+/**
+ * Case-insensitive address comparison. Required because tool/resource
+ * paths are inconsistent: server-routed paths (pay_status) lowercase
+ * addresses, while local paths (pay_fund, pay://wallet/address,
+ * pay://network) return the raw viem EIP-55 checksum form from
+ * wallet.address.
+ */
+function assertAddrEq(actual: unknown, expected: string) {
+  assert.equal(String(actual).toLowerCase(), expected.toLowerCase());
+}
 
 describe("acceptance: setup", () => {
   before(async () => {
@@ -40,7 +48,7 @@ describe("acceptance: setup", () => {
 describe("acceptance: pay_status", () => {
   it("returns balance and address", async () => {
     const result = (await callTool("pay_status", {}, registry)) as Record<string, unknown>;
-    assert.equal(result.wallet, address);
+    assertAddrEq(result.wallet, address);
     assert.ok(result.balance);
     assert.ok("suggestion" in result);
   });
@@ -70,7 +78,7 @@ describe("acceptance: pay_fund", () => {
     const result = (await callTool("pay_fund", {}, registry)) as Record<string, unknown>;
     assert.ok(typeof result.url === "string");
     assert.ok((result.url as string).includes("pay-skill.com") || (result.url as string).includes("testnet"));
-    assert.equal(result.wallet, address);
+    assertAddrEq(result.wallet, address);
   });
 });
 
@@ -130,19 +138,19 @@ describe("acceptance: resources", () => {
   it("reads pay://wallet/status", async () => {
     const result = await readResource("pay://wallet/status", wallet);
     const data = JSON.parse(result.text);
-    assert.equal(data.address, address);
+    assertAddrEq(data.address, address);
   });
 
   it("reads pay://wallet/address", async () => {
     const result = await readResource("pay://wallet/address", wallet);
     const data = JSON.parse(result.text);
-    assert.equal(data.address, address);
+    assertAddrEq(data.address, address);
   });
 
   it("reads pay://network", async () => {
     const result = await readResource("pay://network", wallet);
     const data = JSON.parse(result.text);
-    assert.equal(data.wallet, address);
+    assertAddrEq(data.wallet, address);
   });
 
   it("reads pay://wallet/tabs", async () => {

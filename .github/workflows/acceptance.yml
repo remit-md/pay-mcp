@@ -1,7 +1,13 @@
 name: Acceptance Tests
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: acceptance-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   acceptance:

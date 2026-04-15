@@ -138,7 +138,7 @@ cd pay-mcp
 npm install
 npm run build
 npm test                    # unit tests (mocked)
-npm run test:acceptance     # testnet (requires PAYSKILL_SIGNER_KEY)
+npm run test:acceptance     # testnet (requires PAYSKILL_TESTNET_KEY)
 ```
 
 ## License

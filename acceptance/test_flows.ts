@@ -1,7 +1,7 @@
 /**
  * Acceptance tests — real testnet (Base Sepolia).
  *
- * Run: PAY_NETWORK=testnet PAYSKILL_SIGNER_KEY=0x... npm run test:acceptance
+ * Run: PAY_NETWORK=testnet PAYSKILL_TESTNET_KEY=0x... npm run test:acceptance
  *
  * Tests every tool against a live server. Requires funded wallet.
  */

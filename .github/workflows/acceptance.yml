@@ -28,6 +28,6 @@ jobs:
 
       - name: Acceptance Tests (Base Sepolia)
         env:
-          PAYSKILL_SIGNER_KEY: ${{ secrets.PAYSKILL_SIGNER_KEY }}
+          PAYSKILL_TESTNET_KEY: ${{ secrets.PAYSKILL_TESTNET_KEY }}
           PAY_NETWORK: testnet
         run: npm run test:acceptance

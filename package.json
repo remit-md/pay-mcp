@@ -29,7 +29,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import=tsx/esm --test tests/test_*.ts",
     "test:acceptance": "node --import=tsx/esm --test acceptance/test_*.ts",
-    "check": "tsx src/index.ts --check"
+    "check": "tsx src/index.ts --check",
+    "fetch-skill": "node scripts/fetch-skill.js",
+    "prepack": "node scripts/fetch-skill.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

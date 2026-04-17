@@ -1,6 +1,6 @@
 {
   "name": "@pay-skill/mcp",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "mcpName": "io.github.pay-skill/pay-mcp",
   "description": "MCP server for Pay. x402 payment stack for AI agents -- direct payments, metered tabs, HTTP 402 paywalls. USDC on Base. Works with Claude Desktop, Cursor, VS Code.",
   "type": "module",
